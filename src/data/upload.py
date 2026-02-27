@@ -215,7 +215,7 @@ def render_upload() -> bool:
     st.session_state["extra_dim_cols"]   = extra_dim_cols
     st.session_state["import_datetime"]  = datetime.now()
     st.session_state["import_filename"]  = fname
-    st.session_state["bridge_start"]     = 0
+    st.session_state["bridge_start"]     = max(0, len(mrr_periods) - 13)
     st.session_state["bridge_end"]       = len(mrr_periods) - 1
 
     return True

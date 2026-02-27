@@ -80,12 +80,6 @@ def bench_label(metric: str, value: float | None) -> str:
         if value >= 80:
             return "⚠ Benchmark: >90%"
         return "▼ Below benchmark"
-    if metric == "qr":
-        if value >= 4:
-            return "▲ Healthy (>4x)"
-        if value >= 1:
-            return "⚠ Growing but slow"
-        return "▼ Shrinking (<1x)"
     if metric == "churn":
         if value <= 2:
             return "▲ Low churn (<2%)"

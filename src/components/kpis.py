@@ -27,13 +27,11 @@ def render_kpis(bridge: dict, total_customers: int,
     )
     nrr_val = b["nrr"]
     grr_val = b["grr"]
-    qr_val = b["quick_ratio"]
-
     # Trailing 12M metrics (if monthly data available)
     t12_nrr = trailing_weighted(monthly, "nrr", 12) if monthly else None
     t12_grr = trailing_weighted(monthly, "grr", 12) if monthly else None
 
-    cols = st.columns(5)
+    cols = st.columns(4)
 
     # 1. Closing MRR/ARR + CMGR
     with cols[0]:
@@ -61,15 +59,8 @@ def render_kpis(bridge: dict, total_customers: int,
         if t12_grr:
             st.caption(f"T12M: {t12_grr}%")
 
-    # 4. Quick Ratio
+    # 4. Active Customers
     with cols[3]:
-        st.metric(
-            "Quick Ratio",
-            f"{qr_val}x" if qr_val is not None else "—",
-        )
-
-    # 5. Active Customers
-    with cols[4]:
         net = b["cust_closing"] - b["cust_opening"]
         st.metric(
             "Active Customers",

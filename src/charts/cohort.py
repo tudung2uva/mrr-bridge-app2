@@ -33,7 +33,7 @@ def _cohort_color(val: float | None, ctype: str, empty_cohort: bool = False) -> 
     customers — render as grey.
     """
     if empty_cohort:
-        return "background-color:#12151d;color:#3a4560"
+        return "background-color:#12151d;color:#4a5a7a;font-style:italic"
     if val is None:
         return "background-color:#080a0f;color:#1a2030"
     if ctype == "nrr":
@@ -91,23 +91,23 @@ def _build_cohort_html(cohorts: list[dict], ctype: str, gran: str) -> str:
     html = '<div style="overflow-x:auto;font-family:IBM Plex Mono,monospace;font-size:11px">'
     html += '<table style="border-collapse:collapse;width:100%">'
     html += '<thead><tr style="color:#6a7a9a">'
-    html += f'<th style="text-align:left;padding:4px 8px;min-width:90px">Cohort</th>'
-    html += f'<th style="padding:4px 8px;min-width:80px">{size_label}</th>'
+    html += f'<th style="text-align:left;padding:4px 8px;min-width:90px;font-weight:700">Cohort</th>'
+    html += f'<th style="padding:4px 8px;min-width:80px;font-weight:700">{size_label}</th>'
     for h in mh:
-        html += f'<th style="padding:4px 6px">{h}</th>'
+        html += f'<th style="padding:4px 6px;font-weight:700">{h}</th>'
     html += '</tr></thead><tbody>'
 
     for c in cohorts:
         is_empty = c.get("_empty", False)
         sv = format_currency(c["init_mrr"], sym, short=True) if ctype in ("grr", "nrr") else str(c["size"])
         row_style = "color:#3a4560" if is_empty else ""
-        html += f'<tr><td style="padding:4px 8px;color:{"#3a4560" if is_empty else "#dde3f0"}">{c["label"]}</td>'
+        html += f'<tr><td style="padding:4px 8px;font-weight:700;color:{"#3a4560" if is_empty else "#dde3f0"}">{c["label"]}</td>'
         html += f'<td style="padding:4px 8px;color:{"#3a4560" if is_empty else "#6a7a9a"}">{sv}</td>'
         for i in range(max_offset):
             v = c[ret_key][i] if i < len(c[ret_key]) else None
             if is_empty:
                 style = _cohort_color(0, ctype, empty_cohort=True)
-                txt = "0%"
+                txt = "N/A"
             else:
                 style = _cohort_color(v, ctype)
                 txt = f"{v:.1f}%" if v is not None else ""
@@ -150,9 +150,11 @@ def render_cohort_table(df, mrr_periods, ctype: str) -> None:
         "nrr":  "Benchmarks: >120% enterprise · >100% SMB",
     }
 
-    gran = st.session_state.get("cohort_gran", "monthly")
+    gran = st.radio(
+        "Granularity", ["Monthly", "Yearly"], horizontal=True,
+        key=f"cohort_gran_{ctype}",
+    ).lower()
     st.markdown(f"**{titles[ctype]}**")
-    st.caption(f"{subs[ctype]}  ·  {bmarks[ctype]}")
 
     cohorts = build_cohorts(df, mrr_periods, gran)
     if not cohorts:
@@ -187,13 +189,19 @@ def render_cohort_table(df, mrr_periods, ctype: str) -> None:
     html = _build_cohort_html(cohorts, ctype, gran)
     st.markdown(html, unsafe_allow_html=True)
 
+    # Explainer text below the table
+    st.caption(f"{subs[ctype]}  ·  {bmarks[ctype]}")
+
 
 def render_nrr_chart(df, mrr_periods) -> None:
     """NRR by cohort line chart with year filter.
 
     Mirrors JS ``drawNRRChart``.
     """
-    gran = st.session_state.get("cohort_gran", "monthly")
+    gran = st.radio(
+        "Granularity", ["Monthly", "Yearly"], horizontal=True,
+        key="cohort_gran_nrr_chart",
+    ).lower()
     cohorts = build_cohorts(df, mrr_periods, gran)
     if not cohorts:
         st.info("No cohort data available.")

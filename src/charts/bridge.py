@@ -71,7 +71,7 @@ def _waterfall_chart(
         base=bases,
         text=text_labels,
         textposition="outside",
-        textfont=dict(size=10, family="IBM Plex Mono"),
+        textfont=dict(size=10, family="IBM Plex Mono", color=colors),
         marker_color=[_hex_to_rgba(c) for c in colors],
         marker_line_color=colors,
         marker_line_width=1,
@@ -169,7 +169,7 @@ def render_mrr_bridge(df, mrr_periods) -> None:
     ei = st.session_state.get("bridge_end", len(mrr_periods) - 1)
 
     view_mode = st.radio("View", ["Monthly", "Yearly"], horizontal=True,
-                         key="bridge_view_mode")
+                         key="bridge_view_mode", index=1)
 
     if view_mode == "Yearly":
         _render_yearly_bridge(df, mrr_periods, si, ei)
@@ -305,15 +305,14 @@ def _render_yearly_bridge(df, mrr_periods, si, ei) -> None:
 
     # ── summary KPIs above chart ──────────────────────────
     b_total = build_bridge_range(df, mrr_periods, si, ei)
-    kpi_cols = st.columns(4)
+    kpi_cols = st.columns(3)
     cmgr_str = (
         f"{'+' if b_total['cmgr'] >= 0 else ''}{b_total['cmgr'] * 100:.2f}%/mo"
         if b_total.get("cmgr") is not None else "—"
     )
     kpi_cols[0].metric("CMGR", cmgr_str)
-    kpi_cols[1].metric("Avg NRR", f"{b_total['nrr']:.1f}%" if b_total.get("nrr") else "—")
-    kpi_cols[2].metric("Avg GRR", f"{b_total['grr']:.1f}%" if b_total.get("grr") else "—")
-    kpi_cols[3].metric("Quick Ratio", f"{b_total['quick_ratio']}x" if b_total.get("quick_ratio") else "—")
+    kpi_cols[1].metric("Avg NRR", f"{b_total['nrr']:.1f}%" if b_total.get('nrr') else "—")
+    kpi_cols[2].metric("Avg GRR", f"{b_total['grr']:.1f}%" if b_total.get('grr') else "—")
 
     # ── build waterfall ───────────────────────────────────
     bases, heights = _wf_bars(all_values, all_measures)
@@ -329,7 +328,7 @@ def _render_yearly_bridge(df, mrr_periods, si, ei) -> None:
         base=bases,
         text=all_texts,
         textposition="outside",
-        textfont=dict(size=10, family="IBM Plex Mono"),
+        textfont=dict(size=10, family="IBM Plex Mono", color=all_colors),
         marker_color=[_hex_to_rgba(c) for c in all_colors],
         marker_line_color=all_colors,
         marker_line_width=1,
@@ -367,7 +366,7 @@ def render_logo_bridge(df, mrr_periods) -> None:
     ei = st.session_state.get("bridge_end", len(mrr_periods) - 1)
 
     view_mode = st.radio("View", ["Monthly", "Yearly"], horizontal=True,
-                         key="logo_bridge_view_mode")
+                         key="logo_bridge_view_mode", index=1)
 
     if view_mode == "Yearly":
         _render_yearly_logo_bridge(df, mrr_periods, si, ei)
@@ -488,7 +487,7 @@ def _render_yearly_logo_bridge(df, mrr_periods, si, ei) -> None:
         base=bases,
         text=all_texts,
         textposition="outside",
-        textfont=dict(size=10, family="IBM Plex Mono"),
+        textfont=dict(size=10, family="IBM Plex Mono", color=all_colors),
         marker_color=[_hex_to_rgba(c) for c in all_colors],
         marker_line_color=all_colors,
         marker_line_width=1,

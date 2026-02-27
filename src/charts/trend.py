@@ -75,6 +75,7 @@ def render_components(monthly: list[dict]) -> None:
 
     fig.update_layout(
         barmode="relative",
+        hovermode="x unified",
         title=dict(text="<b>Growth Components</b><br><sup>Monthly movements across all periods</sup>",
                    font=dict(size=14, color="#dde3f0")),
         plot_bgcolor=_DARK_BG, paper_bgcolor=_DARK_BG,

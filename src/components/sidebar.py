@@ -42,15 +42,6 @@ def render_sidebar() -> dict[str, dict]:
         )
         st.session_state["show_arr"] = mode == "ARR"
 
-        # Cohort granularity
-        gran = st.radio(
-            "Cohort granularity",
-            ["Monthly", "Yearly"],
-            horizontal=True,
-            key="cohort_gran_sel",
-        )
-        st.session_state["cohort_gran"] = gran.lower()
-
         st.markdown("---")
         st.markdown("### 🔍 Filters")
 

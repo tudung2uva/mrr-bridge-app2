@@ -79,32 +79,35 @@ def render_full_table(monthly: list[dict]) -> None:
 
     st.caption(f"Showing: {period_label} · {len(shown)} columns · {rr_lbl} mode")
 
-    # ── Build table data ───────────────────────────────────
+    # ── Row definitions with categories ────────────────────
+    # (label, key, fmt, category)
+    # category: None = normal row, str = section header (rendered as bold separator)
     rows_def = [
-        (f"Opening {rr_lbl}",     "opening",      "currency"),
-        ("+ New Logo",            "new_logo",      "currency"),
-        ("+ Upsell",              "upsell",        "currency"),
-        ("+ Downsell",            "downsell",      "currency"),
-        ("+ Churn",               "churn",         "currency"),
-        ("+ Reactivation",        "react",         "currency"),
-        (f"Closing {rr_lbl}",     "closing",       "currency"),
-        ("—",                     "__div1",        "divider"),
-        ("NRR %",                 "nrr",           "pct"),
-        ("GRR %",                 "grr",           "pct"),
-        (f"{rr_lbl} Churn %",     "__cp",          "calc_pct"),
-        ("New Logo %",            "__np",          "calc_pct"),
-        ("—",                     "__div2",        "divider"),
-        ("Opening Customers",     "cust_opening",  "num"),
-        ("+ New Logos",           "cust_new",      "num"),
-        ("+ Reactivations",      "cust_react",     "num"),
-        ("- Churned",            "cust_churn",      "num"),
-        ("Closing Customers",    "cust_closing",    "num"),
-        ("Logo Churn %",         "__lcp",          "calc_pct"),
-        ("Logo New %",           "__lnp",          "calc_pct"),
+        ("MRR / ARR Flows", None,            "section",   None),
+        (f"Opening {rr_lbl}",     "opening",      "currency", True),
+        ("+ New Logo",            "new_logo",      "currency", False),
+        ("+ Upsell",              "upsell",        "currency", False),
+        ("+ Downsell",            "downsell",      "currency", False),
+        ("+ Churn",               "churn",         "currency", False),
+        ("+ Reactivation",        "react",         "currency", False),
+        (f"Closing {rr_lbl}",     "closing",       "currency", True),
+        ("Retention Metrics", None,            "section",   None),
+        ("NRR %",                 "nrr",           "pct",      False),
+        ("GRR %",                 "grr",           "pct",      False),
+        (f"{rr_lbl} Churn %",     "__cp",          "calc_pct", False),
+        ("New Logo %",            "__np",          "calc_pct", False),
+        ("Customer Counts", None,            "section",   None),
+        ("Opening Customers",     "cust_opening",  "num",      True),
+        ("+ New Logos",           "cust_new",      "num",      False),
+        ("+ Reactivations",      "cust_react",     "num",      False),
+        ("- Churned",            "cust_churn",      "num",      False),
+        ("Closing Customers",    "cust_closing",    "num",      True),
+        ("Logo Churn %",         "__lcp",          "calc_pct", False),
+        ("Logo New %",           "__lnp",          "calc_pct", False),
     ]
 
     # Compute totals
-    flow_rows = shown[1:] if not show_arr else shown  # skip base row in monthly mode
+    flow_rows = shown[1:] if not show_arr else shown
     totals: dict = {}
     for key in ["new_logo", "upsell", "downsell", "churn", "react",
                 "cust_new", "cust_churn", "cust_react"]:
@@ -127,49 +130,85 @@ def render_full_table(monthly: list[dict]) -> None:
         if grr_v else None
     )
 
-    # Build DataFrame for display
-    data: dict[str, list[str]] = {"Metric": []}
-    for b in shown:
-        data[b["end_period"]["lbl"]] = []
-    data[f"∑ {period_label}"] = []
-
-    for label, key, fmt in rows_def:
-        if fmt == "divider":
-            continue
-        data["Metric"].append(label)
-        for b in shown:
-            if key == "__cp":
-                v = f"{abs(b['churn']) / b['opening'] * 100:.1f}%" if b.get("opening", 0) > 0 else "—"
-            elif key == "__np":
-                v = f"{b['new_logo'] / b['opening'] * 100:.1f}%" if b.get("opening", 0) > 0 else "—"
-            elif key == "__lcp":
-                v = f"{b['cust_churn'] / b['cust_opening'] * 100:.1f}%" if b.get("cust_opening", 0) > 0 else "—"
-            elif key == "__lnp":
-                v = f"{b['cust_new'] / b['cust_opening'] * 100:.1f}%" if b.get("cust_opening", 0) > 0 else "—"
-            elif fmt == "pct":
-                v = f"{b[key]}%" if b.get(key) is not None else "—"
-            elif fmt == "num":
-                v = str(b.get(key, "—"))
-            else:  # currency
-                v = format_currency(b[key] * mult, sym)
-            data[b["end_period"]["lbl"]].append(v)
-
-        # Total column
+    def _cell_val(b, key, fmt):
         if key == "__cp":
-            tv = f"{abs(totals['churn']) / totals['opening'] * 100:.1f}%" if totals["opening"] > 0 else "—"
+            return f"{abs(b['churn']) / b['opening'] * 100:.1f}%" if b.get("opening", 0) > 0 else "—"
         elif key == "__np":
-            tv = f"{totals['new_logo'] / totals['opening'] * 100:.1f}%" if totals["opening"] > 0 else "—"
+            return f"{b['new_logo'] / b['opening'] * 100:.1f}%" if b.get("opening", 0) > 0 else "—"
         elif key == "__lcp":
-            tv = f"{totals['cust_churn'] / totals['cust_opening'] * 100:.1f}%" if totals["cust_opening"] > 0 else "—"
+            return f"{b['cust_churn'] / b['cust_opening'] * 100:.1f}%" if b.get("cust_opening", 0) > 0 else "—"
         elif key == "__lnp":
-            tv = f"{totals['cust_new'] / totals['cust_opening'] * 100:.1f}%" if totals["cust_opening"] > 0 else "—"
+            return f"{b['cust_new'] / b['cust_opening'] * 100:.1f}%" if b.get("cust_opening", 0) > 0 else "—"
         elif fmt == "pct":
-            tv = f"{totals[key]}%" if totals.get(key) is not None else "—"
+            return f"{b[key]}%" if b.get(key) is not None else "—"
         elif fmt == "num":
-            tv = str(totals.get(key, "—"))
+            return str(b.get(key, "—"))
         else:
-            tv = format_currency(totals[key] * mult, sym)
-        data[f"∑ {period_label}"].append(tv)
+            return format_currency(b[key] * mult, sym)
 
-    tdf = pd.DataFrame(data)
-    st.dataframe(tdf, use_container_width=True, hide_index=True, height=700)
+    def _total_val(key, fmt):
+        if key == "__cp":
+            return f"{abs(totals['churn']) / totals['opening'] * 100:.1f}%" if totals["opening"] > 0 else "—"
+        elif key == "__np":
+            return f"{totals['new_logo'] / totals['opening'] * 100:.1f}%" if totals["opening"] > 0 else "—"
+        elif key == "__lcp":
+            return f"{totals['cust_churn'] / totals['cust_opening'] * 100:.1f}%" if totals["cust_opening"] > 0 else "—"
+        elif key == "__lnp":
+            return f"{totals['cust_new'] / totals['cust_opening'] * 100:.1f}%" if totals["cust_opening"] > 0 else "—"
+        elif fmt == "pct":
+            return f"{totals[key]}%" if totals.get(key) is not None else "—"
+        elif fmt == "num":
+            return str(totals.get(key, "—"))
+        else:
+            return format_currency(totals[key] * mult, sym)
+
+    # ── Detect year boundaries for separators ──────────────
+    col_years = []
+    for b in shown:
+        lbl_text = b["end_period"]["lbl"]
+        yr = lbl_text.split()[-1] if " " in lbl_text else lbl_text
+        col_years.append(yr)
+
+    # ── Build styled HTML table ────────────────────────────
+    cell_css = "padding:6px 10px;text-align:right;white-space:nowrap"
+    hdr_css = "padding:6px 10px;text-align:right;white-space:nowrap;color:#6a7a9a;font-weight:700;font-size:12px"
+    metric_css = "padding:6px 10px;text-align:left;white-space:nowrap;color:#dde3f0"
+
+    html = '<div style="overflow-x:auto;font-family:IBM Plex Mono,monospace;font-size:13px">'    
+    html += '<table style="border-collapse:collapse;width:100%">'
+
+    # Header row
+    html += '<thead><tr>'
+    html += f'<th style="{hdr_css};text-align:left;position:sticky;left:0;background:#0c0e14;z-index:1">Metric</th>'
+    for i, b in enumerate(shown):
+        lbl_text = b["end_period"]["lbl"]
+        border = "border-left:2px solid #2a3050;" if i > 0 and col_years[i] != col_years[i - 1] else ""
+        html += f'<th style="{hdr_css};{border}">{lbl_text}</th>'
+    html += f'<th style="{hdr_css};border-left:2px solid #ffb020;color:#ffb020">∑</th>'
+    html += '</tr></thead><tbody>'
+
+    for label, key, fmt, is_bold in rows_def:
+        if fmt == "section":
+            # Category separator row
+            ncols = len(shown) + 2
+            html += (
+                f'<tr><td colspan="{ncols}" style="padding:10px 8px 4px 8px;'
+                f'font-weight:700;color:#ffb020;font-size:13px;'
+                f'border-bottom:1px solid #2a3050">{label}</td></tr>'
+            )
+            continue
+
+        bold_style = "font-weight:700;" if is_bold else ""
+        row_color = "#dde3f0" if is_bold else "#8a9aba"
+        html += '<tr>'
+        html += f'<td style="{metric_css};{bold_style}position:sticky;left:0;background:#0c0e14;z-index:1">{label}</td>'
+        for i, b in enumerate(shown):
+            v = _cell_val(b, key, fmt)
+            border = "border-left:2px solid #2a3050;" if i > 0 and col_years[i] != col_years[i - 1] else ""
+            html += f'<td style="{cell_css};{bold_style}color:{row_color};{border}">{v}</td>'
+        tv = _total_val(key, fmt)
+        html += f'<td style="{cell_css};{bold_style}color:#ffb020;border-left:2px solid #ffb020">{tv}</td>'
+        html += '</tr>'
+
+    html += '</tbody></table></div>'
+    st.markdown(html, unsafe_allow_html=True)

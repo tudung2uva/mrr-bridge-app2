@@ -25,7 +25,8 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
     sym = st.session_state.get("currency", "€")
     mult = 12 if st.session_state.get("show_arr", False) else 1
     lbl = "ARR" if st.session_state.get("show_arr", False) else "MRR"
-    last_key = mrr_periods[-1]["key"]
+    bridge_end = st.session_state.get("bridge_end", len(mrr_periods) - 1)
+    last_key = mrr_periods[bridge_end]["key"]
 
     # Build per‑customer data
     customers: list[dict] = []
@@ -37,10 +38,19 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
         industry = str(row.get(col_map.get("industry", ""), "Unknown") or "Unknown")
         customers.append({"name": name, "mrr": mrr_val, "industry": industry})
 
+    # Aggregate product-line rows by customer name
+    agg: dict[str, dict] = {}
+    for c in customers:
+        if c["name"] in agg:
+            agg[c["name"]]["mrr"] += c["mrr"]
+        else:
+            agg[c["name"]] = dict(c)
+    customers = list(agg.values())
+
     customers.sort(key=lambda c: c["mrr"], reverse=True)
 
     if not customers:
-        st.info("No active customers in the latest period.")
+        st.info(f"No active customers in {mrr_periods[bridge_end]['lbl']}.")
         return
 
     # Toggle
@@ -55,13 +65,13 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
         labels = [e[0] for e in entries]
         values = [e[1] * mult for e in entries]
         chart_title = "Revenue by Industry"
-        chart_sub = f"{lbl} — latest period · all industries"
+        chart_sub = f"{lbl} — {mrr_periods[bridge_end]['lbl']} · all industries"
     else:
         top = customers[:25]
         labels = [c["name"] for c in top]
         values = [c["mrr"] * mult for c in top]
         chart_title = "Revenue per Customer"
-        chart_sub = f"{lbl} — latest period · top 25"
+        chart_sub = f"{lbl} — {mrr_periods[bridge_end]['lbl']} · top 25"
 
     colors = [PALETTE[i % len(PALETTE)] for i in range(len(labels))]
 

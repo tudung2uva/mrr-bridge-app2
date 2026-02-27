@@ -21,7 +21,6 @@ CLR_CLOSING   = "#00c8f0"
 BENCH = {
     "nrr":   {"good": 120, "amber": 100},
     "grr":   {"good": 90,  "amber": 80},
-    "qr":    {"good": 4,   "amber": 1},
     "churn": {"good": 2,   "amber": 5},   # ≤ good → green, ≤ amber → amber
 }
 

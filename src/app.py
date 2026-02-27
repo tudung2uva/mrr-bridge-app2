@@ -2,7 +2,7 @@
 """Main orchestrator — mirrors the JS ARR Bridge Analyzer v8.4.
 
 Tab layout:
-  MRR Bridge | Logo Bridge | MRR Trend | Components | ACV Trend
+  Dashboard | MRR Bridge | Logo Bridge | MRR Trend | Components | ACV Trend
   Logo Retention | GRR Cohort | NRR Cohort | NRR Chart
   Revenue Insights | New Investments | Product Mix | Full Table
 
@@ -49,7 +49,6 @@ from data.engine import (
     all_monthly_bridges,
 )
 from components.sidebar import render_sidebar
-from components.kpis import render_kpis
 from components.validation import render_validation
 from components.formula_panel import render_formula_panel
 from charts.bridge import render_mrr_bridge, render_logo_bridge, render_period_selector
@@ -60,13 +59,14 @@ from charts.concentration import render_concentration
 from charts.full_table import render_full_table
 from charts.new_logos import render_new_logos
 from charts.product_mix import render_product_mix
+from charts.dashboard import render_dashboard
 from utils.helpers import format_currency
 
 
 # ── Header ─────────────────────────────────────────────────
 st.markdown(
     "<h2 style='margin-bottom:0'>📊 MRR Bridge Analyzer</h2>"
-    "<p style='color:#6a7a9a;margin-top:0'>Vortex Capital Partners · PE Operating Team</p>",
+    "<p style='color:#6a7a9a;margin-top:0'>Vortex Capital Partners </p>",
     unsafe_allow_html=True,
 )
 
@@ -116,16 +116,17 @@ st.markdown(
     f"{filter_txt}",
 )
 
-# ── KPI cards ──────────────────────────────────────────
-# Use full-range bridge for overall KPIs
-full_b = build_bridge_range(df, mrr_periods, 0, len(mrr_periods) - 1)
-render_kpis(full_b, total_customers, monthly)
-
-# ── Period selectors (below KPIs, visible on every tab) ───
+# ── Period selectors (global date range for all tabs) ─────
 bridge_start, bridge_end = render_period_selector("brg_")
+
+# ── Formula inspector (sidebar) ──────────────────────────
+with st.sidebar:
+    st.markdown("---")
+    render_formula_panel(monthly)
 
 # ── Tabs ───────────────────────────────────────────────────
 tab_names = [
+    "Dashboard",
     "MRR Bridge", "Logo Bridge", "MRR Trend", "Components", "ACV Trend",
     "Logo Retention", "GRR Cohort", "NRR Cohort", "NRR Chart",
     "Revenue Insights", "New Investments", "Product Mix", "Full Table",
@@ -133,46 +134,46 @@ tab_names = [
 tabs = st.tabs(tab_names)
 
 with tabs[0]:
-    render_mrr_bridge(df, mrr_periods)
+    render_dashboard(df, mrr_periods, col_map, monthly)
 
 with tabs[1]:
-    render_logo_bridge(df, mrr_periods)
+    render_mrr_bridge(df, mrr_periods)
 
 with tabs[2]:
-    render_trend(monthly)
+    render_logo_bridge(df, mrr_periods)
 
 with tabs[3]:
-    render_components(monthly)
+    render_trend(monthly)
 
 with tabs[4]:
-    render_acv(monthly)
+    render_components(monthly)
 
 with tabs[5]:
-    render_cohort_table(df, mrr_periods, "logo")
+    render_acv(monthly)
 
 with tabs[6]:
-    render_cohort_table(df, mrr_periods, "grr")
+    render_cohort_table(df, mrr_periods, "logo")
 
 with tabs[7]:
-    render_cohort_table(df, mrr_periods, "nrr")
+    render_cohort_table(df, mrr_periods, "grr")
 
 with tabs[8]:
-    render_nrr_chart(df, mrr_periods)
+    render_cohort_table(df, mrr_periods, "nrr")
 
 with tabs[9]:
-    render_concentration(df, mrr_periods, col_map)
+    render_nrr_chart(df, mrr_periods)
 
 with tabs[10]:
-    render_new_logos(df, mrr_periods, col_map)
+    render_concentration(df, mrr_periods, col_map)
 
 with tabs[11]:
-    render_product_mix(df, mrr_periods, col_map)
+    render_new_logos(df, mrr_periods, col_map)
 
 with tabs[12]:
-    render_full_table(monthly)
+    render_product_mix(df, mrr_periods, col_map)
 
-# ── Formula panel ──────────────────────────────────────────
-render_formula_panel(monthly)
+with tabs[13]:
+    render_full_table(monthly)
 
 # ── Reconciliation checks ─────────────────────────────────
 render_validation(monthly)
