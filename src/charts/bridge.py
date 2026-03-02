@@ -9,7 +9,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from data.engine import build_bridge_range
+from data.engine import build_bridge_range, get_movement_details
 from utils.constants import (CLR_OPENING, CLR_NEW_LOGO, CLR_UPSELL,
                               CLR_REACT, CLR_DOWNSELL, CLR_CHURN, CLR_CLOSING)
 from utils.helpers import format_currency
@@ -161,6 +161,36 @@ def render_period_selector(prefix: str = "") -> tuple[int, int]:
     return si, ei
 
 
+# ── Movement detail helpers ────────────────────────────────
+
+def _render_movement_details(details: dict, sym: str, mult: int, lbl: str) -> None:
+    """Render expandable customer breakdowns for each bridge movement category."""
+    import pandas as pd
+
+    cat_labels = {
+        "new_logo": ("🟢 New Logo", CLR_NEW_LOGO),
+        "upsell":   ("📈 Upsell", CLR_UPSELL),
+        "react":    ("🔄 Reactivation", CLR_REACT),
+        "downsell": ("📉 Downsell", CLR_DOWNSELL),
+        "churn":    ("❌ Churn", CLR_CHURN),
+    }
+
+    for cat_key, (cat_name, cat_color) in cat_labels.items():
+        entries = details.get(cat_key, [])
+        if not entries:
+            continue
+        total = sum(abs(e["mrr_change"]) for e in entries)
+        with st.expander(f"{cat_name} — {len(entries)} customers · {format_currency(total * mult, sym, short=True)}", expanded=False):
+            rows = []
+            for e in entries[:50]:  # limit to top 50
+                rows.append({
+                    "Customer": e["name"],
+                    f"{lbl} Change": format_currency(e["mrr_change"] * mult, sym, short=False),
+                    "% of Category": f"{e['pct']:.1f}%",
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 # ── Public render functions ────────────────────────────────
 
 def render_mrr_bridge(df, mrr_periods) -> None:
@@ -168,10 +198,10 @@ def render_mrr_bridge(df, mrr_periods) -> None:
     si = st.session_state.get("bridge_start", 0)
     ei = st.session_state.get("bridge_end", len(mrr_periods) - 1)
 
-    view_mode = st.radio("View", ["Monthly", "Yearly"], horizontal=True,
+    view_mode = st.radio("View", ["Total", "Year-by-year"], horizontal=True,
                          key="bridge_view_mode", index=1)
 
-    if view_mode == "Yearly":
+    if view_mode == "Year-by-year":
         _render_yearly_bridge(df, mrr_periods, si, ei)
         return
 
@@ -209,6 +239,11 @@ def render_mrr_bridge(df, mrr_periods) -> None:
         cols = st.columns(len(pcts))
         for i, (k, v) in enumerate(pcts.items()):
             cols[i].metric(k, f"{v:+.1f}%")
+
+    # Customer breakdown per movement category
+    col_map = st.session_state.get("col_map", {})
+    details = get_movement_details(df, mrr_periods, si, ei, col_map)
+    _render_movement_details(details, sym, mult, lbl)
 
 
 def _render_yearly_bridge(df, mrr_periods, si, ei) -> None:
@@ -365,10 +400,10 @@ def render_logo_bridge(df, mrr_periods) -> None:
     si = st.session_state.get("bridge_start", 0)
     ei = st.session_state.get("bridge_end", len(mrr_periods) - 1)
 
-    view_mode = st.radio("View", ["Monthly", "Yearly"], horizontal=True,
+    view_mode = st.radio("View", ["Total", "Year-by-year"], horizontal=True,
                          key="logo_bridge_view_mode", index=1)
 
-    if view_mode == "Yearly":
+    if view_mode == "Year-by-year":
         _render_yearly_logo_bridge(df, mrr_periods, si, ei)
         return
 
@@ -401,6 +436,14 @@ def render_logo_bridge(df, mrr_periods) -> None:
         net = b["cust_closing"] - b["cust_opening"]
         cols[4].metric("Closing #", b["cust_closing"],
                        f"net {'+' if net >= 0 else ''}{net}")
+
+    # Customer breakdown per movement category
+    sym = st.session_state.get("currency", "€")
+    mult = 12 if st.session_state.get("show_arr", False) else 1
+    lbl = "ARR" if st.session_state.get("show_arr", False) else "MRR"
+    col_map = st.session_state.get("col_map", {})
+    details = get_movement_details(df, mrr_periods, si, ei, col_map)
+    _render_movement_details(details, sym, mult, lbl)
 
 
 def _render_yearly_logo_bridge(df, mrr_periods, si, ei) -> None:

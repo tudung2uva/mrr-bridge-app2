@@ -110,7 +110,9 @@ def _build_cohort_html(cohorts: list[dict], ctype: str, gran: str) -> str:
                 txt = "N/A"
             else:
                 style = _cohort_color(v, ctype)
-                txt = f"{v:.1f}%" if v is not None else ""
+                txt = f"{v:.1f}%" if v is not None else "N/A"
+            if v is None and not is_empty:
+                style = "background-color:#12151d;color:#4a5a7a;font-style:italic"
             html += f'<td style="padding:3px 5px;text-align:center;{style}">{txt}</td>'
         html += '</tr>'
 

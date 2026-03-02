@@ -101,7 +101,7 @@ lbl = "ARR" if show_arr else "MRR"
 
 active_filters = sum(
     1 for f in filters.values()
-    if len(f["selected"]) < len(f["vals"])
+    if 0 < len(f["selected"]) < len(f["vals"])
 )
 filter_txt = f" · **{active_filters} filter{'s' if active_filters > 1 else ''} active**" if active_filters else ""
 
@@ -119,10 +119,14 @@ st.markdown(
 # ── Period selectors (global date range for all tabs) ─────
 bridge_start, bridge_end = render_period_selector("brg_")
 
-# ── Formula inspector (sidebar) ──────────────────────────
-with st.sidebar:
-    st.markdown("---")
-    render_formula_panel(monthly)
+# Create date-filtered monthly subset for non-cohort tabs
+bridge_monthly = [b for idx, b in enumerate(monthly) if bridge_start <= idx <= bridge_end]
+
+# ── Formula inspector (above title) ──────────────────────
+render_formula_panel(monthly)
+
+# ── Reconciliation checks ─────────────────────────────────
+render_validation(monthly)
 
 # ── Tabs ───────────────────────────────────────────────────
 tab_names = [
@@ -134,7 +138,7 @@ tab_names = [
 tabs = st.tabs(tab_names)
 
 with tabs[0]:
-    render_dashboard(df, mrr_periods, col_map, monthly)
+    render_dashboard(df, mrr_periods, col_map, bridge_monthly)
 
 with tabs[1]:
     render_mrr_bridge(df, mrr_periods)
@@ -143,13 +147,13 @@ with tabs[2]:
     render_logo_bridge(df, mrr_periods)
 
 with tabs[3]:
-    render_trend(monthly)
+    render_trend(bridge_monthly)
 
 with tabs[4]:
-    render_components(monthly)
+    render_components(bridge_monthly)
 
 with tabs[5]:
-    render_acv(monthly)
+    render_acv(bridge_monthly)
 
 with tabs[6]:
     render_cohort_table(df, mrr_periods, "logo")
@@ -173,10 +177,7 @@ with tabs[12]:
     render_product_mix(df, mrr_periods, col_map)
 
 with tabs[13]:
-    render_full_table(monthly)
-
-# ── Reconciliation checks ─────────────────────────────────
-render_validation(monthly)
+    render_full_table(bridge_monthly)
 
 # ── Footer ─────────────────────────────────────────────────
 st.markdown("---")

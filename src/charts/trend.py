@@ -6,6 +6,7 @@ Mirrors JS ``drawTrendChart`` and ``drawComponentsChart``.
 from __future__ import annotations
 
 import plotly.graph_objects as go
+import pandas as pd
 import streamlit as st
 
 from utils.helpers import format_currency
@@ -47,6 +48,14 @@ def render_trend(monthly: list[dict]) -> None:
         showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Export table
+    with st.expander("📊 Data Table", expanded=False):
+        tbl = pd.DataFrame({
+            "Period": labels,
+            f"Closing {lbl}": [format_currency(v, sym) for v in values],
+        })
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
 
 
 def render_components(monthly: list[dict]) -> None:
@@ -120,3 +129,17 @@ def render_components(monthly: list[dict]) -> None:
     cols[3].metric("Total Churn",    format_currency(tot_ch, sym, short=True))
     cols[4].metric("Wtd NRR",        f"{wtd_nrr}%" if wtd_nrr else "—")
     cols[5].metric("Wtd GRR",        f"{wtd_grr}%" if wtd_grr else "—")
+
+    # Export table
+    with st.expander("📊 Data Table", expanded=False):
+        tbl = pd.DataFrame({
+            "Period": labels,
+            "New Logo": [format_currency(b["new_logo"] * mult, sym) for b in monthly],
+            "Upsell": [format_currency(b["upsell"] * mult, sym) for b in monthly],
+            "Reactivation": [format_currency(b["react"] * mult, sym) for b in monthly],
+            "Downsell": [format_currency(b["downsell"] * mult, sym) for b in monthly],
+            "Churn": [format_currency(b["churn"] * mult, sym) for b in monthly],
+            "NRR %": [f"{b['nrr']}%" if b.get('nrr') is not None else "—" for b in monthly],
+            "GRR %": [f"{b['grr']}%" if b.get('grr') is not None else "—" for b in monthly],
+        })
+        st.dataframe(tbl, use_container_width=True, hide_index=True)

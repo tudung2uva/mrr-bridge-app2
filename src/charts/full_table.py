@@ -184,7 +184,7 @@ def render_full_table(monthly: list[dict]) -> None:
         lbl_text = b["end_period"]["lbl"]
         border = "border-left:2px solid #2a3050;" if i > 0 and col_years[i] != col_years[i - 1] else ""
         html += f'<th style="{hdr_css};{border}">{lbl_text}</th>'
-    html += f'<th style="{hdr_css};border-left:2px solid #ffb020;color:#ffb020">∑</th>'
+    html += f'<th style="{hdr_css};border-left:2px solid #6a9ae8;color:#6a9ae8">∑ {mrr_periods[bridge_start]["lbl"]} → {mrr_periods[bridge_end]["lbl"]}</th>'
     html += '</tr></thead><tbody>'
 
     for label, key, fmt, is_bold in rows_def:
@@ -193,7 +193,7 @@ def render_full_table(monthly: list[dict]) -> None:
             ncols = len(shown) + 2
             html += (
                 f'<tr><td colspan="{ncols}" style="padding:10px 8px 4px 8px;'
-                f'font-weight:700;color:#ffb020;font-size:13px;'
+                f'font-weight:700;color:#6a9ae8;font-size:13px;'
                 f'border-bottom:1px solid #2a3050">{label}</td></tr>'
             )
             continue
@@ -207,7 +207,7 @@ def render_full_table(monthly: list[dict]) -> None:
             border = "border-left:2px solid #2a3050;" if i > 0 and col_years[i] != col_years[i - 1] else ""
             html += f'<td style="{cell_css};{bold_style}color:{row_color};{border}">{v}</td>'
         tv = _total_val(key, fmt)
-        html += f'<td style="{cell_css};{bold_style}color:#ffb020;border-left:2px solid #ffb020">{tv}</td>'
+        html += f'<td style="{cell_css};{bold_style}color:#6a9ae8;border-left:2px solid #6a9ae8">{tv}</td>'
         html += '</tr>'
 
     html += '</tbody></table></div>'

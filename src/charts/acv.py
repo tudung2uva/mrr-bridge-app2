@@ -6,6 +6,7 @@ Mirrors JS ``drawACVChart``.
 from __future__ import annotations
 
 import plotly.graph_objects as go
+import pandas as pd
 import streamlit as st
 
 from utils.helpers import format_currency
@@ -73,3 +74,12 @@ def render_acv(monthly: list[dict]) -> None:
             showlegend=False,
         )
         st.plotly_chart(fig2, use_container_width=True)
+
+    # ── Export table ───────────────────────────────────────
+    with st.expander("📊 Data Table", expanded=False):
+        tbl_data = pd.DataFrame({
+            "Period": labels,
+            f"ACV ({lbl})": [format_currency(v, sym) for v in acv_vals],
+            "Active Customers": cust_vals,
+        })
+        st.dataframe(tbl_data, use_container_width=True, hide_index=True)

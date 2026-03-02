@@ -174,7 +174,7 @@ def render_upload() -> bool:
         f"{mrr_periods[0]['lbl']} → {mrr_periods[-1]['lbl']}"
     )
 
-    # ── Column mapping form ────────────────────────────────
+    # ── Column mapping — auto-detect defaults, store for sidebar UI ──
     mrr_keys = {p["key"] for p in mrr_periods}
     meta_keys = list(COLUMN_HINTS.keys())
     meta_labels = {"companyName": "Company Name", "industry": "Industry",
@@ -183,29 +183,16 @@ def render_upload() -> bool:
     skip = "— skip —"
     options = [skip] + headers
 
-    with st.expander("Column Mapping", expanded=True):
-        col_map: dict[str, str] = {}
-        cols = st.columns(len(meta_keys))
-        for idx, mk in enumerate(meta_keys):
-            default = _guess_col(headers, COLUMN_HINTS[mk])
-            default_idx = options.index(default) if default in options else 0
-            chosen = cols[idx].selectbox(
-                meta_labels[mk], options, index=default_idx,
-                key=f"map_{mk}",
-            )
-            col_map[mk] = "" if chosen == skip else chosen
+    # Auto-guess defaults (only on first load)
+    col_map: dict[str, str] = {}
+    for mk in meta_keys:
+        default = _guess_col(headers, COLUMN_HINTS[mk])
+        col_map[mk] = default if default else ""
 
-        # Extra dimension candidates
-        mapped_cols = {v for v in col_map.values() if v}
-        extra_candidates = detect_extra_dims(df, headers, mrr_keys, mapped_cols)
-        extra_dim_cols: list[str] = []
-        if extra_candidates:
-            extra_dim_cols = st.multiselect(
-                "Additional filter dimensions",
-                extra_candidates,
-                default=extra_candidates[:5],
-                key="extra_dims",
-            )
+    # Extra dimension candidates
+    mapped_cols = {v for v in col_map.values() if v}
+    extra_candidates = detect_extra_dims(df, headers, mrr_keys, mapped_cols)
+    extra_dim_cols: list[str] = extra_candidates[:5] if extra_candidates else []
 
     # ── Store in session state ─────────────────────────────
     st.session_state["raw_data"]         = df
@@ -213,6 +200,10 @@ def render_upload() -> bool:
     st.session_state["mrr_periods"]      = mrr_periods
     st.session_state["col_map"]          = col_map
     st.session_state["extra_dim_cols"]   = extra_dim_cols
+    st.session_state["_col_map_options"] = options
+    st.session_state["_meta_keys"]       = meta_keys
+    st.session_state["_meta_labels"]     = meta_labels
+    st.session_state["_extra_candidates"]= extra_candidates
     st.session_state["import_datetime"]  = datetime.now()
     st.session_state["import_filename"]  = fname
     st.session_state["bridge_start"]     = max(0, len(mrr_periods) - 13)

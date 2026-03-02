@@ -25,18 +25,26 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
     sym = st.session_state.get("currency", "€")
     mult = 12 if st.session_state.get("show_arr", False) else 1
     lbl = "ARR" if st.session_state.get("show_arr", False) else "MRR"
+    bridge_start = st.session_state.get("bridge_start", 0)
     bridge_end = st.session_state.get("bridge_end", len(mrr_periods) - 1)
-    last_key = mrr_periods[bridge_end]["key"]
 
-    # Build per‑customer data
+    # Build per‑customer data — average MRR across the full selected range
+    n_periods = bridge_end - bridge_start + 1
     customers: list[dict] = []
     for _, row in df.iterrows():
-        mrr_val = get_mrr(row, last_key)
-        if mrr_val <= 0:
+        total_mrr = 0.0
+        active_periods = 0
+        for pi in range(bridge_start, bridge_end + 1):
+            m = get_mrr(row, mrr_periods[pi]["key"])
+            if m > 0:
+                total_mrr += m
+                active_periods += 1
+        if active_periods == 0:
             continue
+        avg_mrr = total_mrr / active_periods
         name = str(row.get(col_map.get("companyName", ""), "Unknown") or "Unknown")
         industry = str(row.get(col_map.get("industry", ""), "Unknown") or "Unknown")
-        customers.append({"name": name, "mrr": mrr_val, "industry": industry})
+        customers.append({"name": name, "mrr": avg_mrr, "industry": industry})
 
     # Aggregate product-line rows by customer name
     agg: dict[str, dict] = {}
@@ -50,7 +58,7 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
     customers.sort(key=lambda c: c["mrr"], reverse=True)
 
     if not customers:
-        st.info(f"No active customers in {mrr_periods[bridge_end]['lbl']}.")
+        st.info(f"No active customers in {mrr_periods[bridge_start]['lbl']} → {mrr_periods[bridge_end]['lbl']}.")
         return
 
     # Toggle
@@ -65,13 +73,13 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
         labels = [e[0] for e in entries]
         values = [e[1] * mult for e in entries]
         chart_title = "Revenue by Industry"
-        chart_sub = f"{lbl} — {mrr_periods[bridge_end]['lbl']} · all industries"
+        chart_sub = f"{lbl} — {mrr_periods[bridge_start]['lbl']} → {mrr_periods[bridge_end]['lbl']} · avg per period · all industries"
     else:
         top = customers[:25]
         labels = [c["name"] for c in top]
         values = [c["mrr"] * mult for c in top]
         chart_title = "Revenue per Customer"
-        chart_sub = f"{lbl} — {mrr_periods[bridge_end]['lbl']} · top 25"
+        chart_sub = f"{lbl} — {mrr_periods[bridge_start]['lbl']} → {mrr_periods[bridge_end]['lbl']} · avg per period · top 25"
 
     colors = [PALETTE[i % len(PALETTE)] for i in range(len(labels))]
 
@@ -104,10 +112,21 @@ def render_concentration(df, mrr_periods, col_map: dict) -> None:
         top3 = sum(c["mrr"] for c in customers[:3]) / total * 100
         top10 = sum(c["mrr"] for c in customers[:10]) / total * 100
 
-        cols = st.columns(5)
+        cols = st.columns(4)
         cols[0].metric("#1 customer", f"{top1:.1f}%")
         cols[1].metric("Top 3", f"{top3:.1f}%")
         cols[2].metric("Top 10", f"{top10:.1f}%")
         cols[3].metric("Active", len(customers))
-        cols[4].metric("Status",
-                       "✓ Diversified" if top3 <= 30 else "⚠ Concentrated")
+
+    # Export table
+    import pandas as pd_conc
+    with st.expander("📊 Data Table", expanded=False):
+        tbl_rows = []
+        for c in customers:
+            tbl_rows.append({
+                "Customer": c["name"],
+                "Industry": c["industry"],
+                f"Avg {lbl}": format_currency(c["mrr"] * mult, sym),
+                "% of Total": f"{c['mrr'] / total * 100:.1f}%" if total > 0 else "—",
+            })
+        st.dataframe(pd_conc.DataFrame(tbl_rows), use_container_width=True, hide_index=True)

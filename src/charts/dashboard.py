@@ -301,13 +301,36 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
     else:
         cagr_str = None
 
-    # NRR / GRR trailing 12M
+    # NRR / GRR — average of monthly values (weighted by opening MRR)
     t12_nrr = trailing_weighted(monthly, "nrr", 12) if monthly else None
     t12_grr = trailing_weighted(monthly, "grr", 12) if monthly else None
 
-    # Churn %
-    churn_pct = abs(b["churn"]) / b["opening"] * 100 if b["opening"] > 0 else None
-    monthly_churn_rate = abs(b["churn"]) / b["opening"] if b["opening"] > 0 else None
+    # Filter monthly data to the selected bridge range
+    bridge_monthly = [b_m for idx, b_m in enumerate(monthly)
+                      if si <= idx <= ei and b_m.get("opening", 0) > 0]
+
+    # Weighted average NRR/GRR over selected range
+    nrr_months = [m for m in bridge_monthly if m.get("nrr") is not None]
+    avg_nrr = (
+        round(sum(m["nrr"] * m["opening"] for m in nrr_months) /
+              sum(m["opening"] for m in nrr_months), 1)
+        if nrr_months else None
+    )
+    grr_months = [m for m in bridge_monthly if m.get("grr") is not None]
+    avg_grr = (
+        round(sum(m["grr"] * m["opening"] for m in grr_months) /
+              sum(m["opening"] for m in grr_months), 1)
+        if grr_months else None
+    )
+
+    # Churn % — average monthly churn rate
+    churn_months = [m for m in bridge_monthly if m.get("opening", 0) > 0]
+    if churn_months:
+        avg_churn_pct = sum(abs(m["churn"]) / m["opening"] * 100 for m in churn_months) / len(churn_months)
+        avg_monthly_churn_rate = sum(abs(m["churn"]) / m["opening"] for m in churn_months) / len(churn_months)
+    else:
+        avg_churn_pct = None
+        avg_monthly_churn_rate = None
 
     # Active customers
     if col_map.get("companyName") and col_map["companyName"] in df.columns:
@@ -320,7 +343,7 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
     arpa = b["closing"] * mult / b["cust_closing"] if b["cust_closing"] > 0 else None
 
     # ACL (Average Customer Lifetime) = 1 / monthly churn rate → months
-    acl_months = 1 / monthly_churn_rate if monthly_churn_rate and monthly_churn_rate > 0 else None
+    acl_months = 1 / avg_monthly_churn_rate if avg_monthly_churn_rate and avg_monthly_churn_rate > 0 else None
 
     # LTV (Customer Lifetime Value) = ARPA × ACL  (assumes 100% gross margin)
     ltv = arpa * (acl_months / 12 if show_arr else acl_months) if (arpa and acl_months) else None
@@ -334,13 +357,13 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
             delta=cagr_str,
         )
     with cols[1]:
-        nrr_display = f"{b['nrr']}%" if b.get("nrr") is not None else "—"
-        st.metric("NRR", nrr_display)
+        nrr_display = f"{avg_nrr}%" if avg_nrr is not None else "—"
+        st.metric("Avg NRR", nrr_display)
         if t12_nrr:
             st.caption(f"T12M: {t12_nrr}%")
     with cols[2]:
-        grr_display = f"{b['grr']}%" if b.get("grr") is not None else "—"
-        st.metric("GRR", grr_display)
+        grr_display = f"{avg_grr}%" if avg_grr is not None else "—"
+        st.metric("Avg GRR", grr_display)
         if t12_grr:
             st.caption(f"T12M: {t12_grr}%")
     with cols[3]:
@@ -351,8 +374,8 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
         )
     with cols[4]:
         st.metric(
-            "Churn %",
-            f"{churn_pct:.1f}%" if churn_pct is not None else "—",
+            "Avg Churn %",
+            f"{avg_churn_pct:.1f}%" if avg_churn_pct is not None else "—",
         )
     with cols[5]:
         acl_display = f"{acl_months:.1f} mo" if acl_months is not None else "—"

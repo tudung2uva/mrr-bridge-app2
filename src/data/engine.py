@@ -179,6 +179,75 @@ def build_bridge_range(
     }
 
 
+def get_movement_details(
+    df: pd.DataFrame,
+    mrr_periods: list[dict],
+    start_idx: int,
+    end_idx: int,
+    col_map: dict[str, str],
+) -> dict[str, list[dict]]:
+    """Return per-customer details for each bridge movement category.
+
+    Returns a dict with keys: new_logo, upsell, downsell, churn, react.
+    Each value is a list of ``{name, mrr_change, pct}`` sorted by |mrr_change|.
+    """
+    name_col = col_map.get("companyName", "")
+
+    # Accumulate per-customer movements
+    cust_data: dict[str, dict] = {}  # name -> {new_logo, upsell, downsell, churn, react}
+
+    open_key = mrr_periods[start_idx]["key"]
+    total_opening = 0.0
+    for _, row in df.iterrows():
+        total_opening += get_mrr(row, open_key)
+
+    for i in range(start_idx + 1, end_idx + 1):
+        pa_key = mrr_periods[i - 1]["key"]
+        pb_key = mrr_periods[i]["key"]
+        for _, row in df.iterrows():
+            m_a = get_mrr(row, pa_key)
+            m_b = get_mrr(row, pb_key)
+            delta = m_b - m_a
+
+            cname = str(row.get(name_col, "")).strip() if name_col and name_col in row.index else f"Row {row.name}"
+            if cname not in cust_data:
+                cust_data[cname] = {"new_logo": 0.0, "upsell": 0.0, "downsell": 0.0, "churn": 0.0, "react": 0.0}
+
+            if m_a == 0 and m_b > 0:
+                was_ever = any(
+                    get_mrr(row, mrr_periods[p]["key"]) > 0
+                    for p in range(0, i - 1)
+                )
+                if was_ever:
+                    cust_data[cname]["react"] += m_b
+                else:
+                    cust_data[cname]["new_logo"] += m_b
+            elif m_a > 0 and m_b == 0:
+                cust_data[cname]["churn"] -= m_a
+            elif delta > 0:
+                cust_data[cname]["upsell"] += delta
+            elif delta < 0:
+                cust_data[cname]["downsell"] += delta
+
+    # Build per-category lists
+    categories = ["new_logo", "upsell", "downsell", "churn", "react"]
+    result: dict[str, list[dict]] = {}
+    for cat in categories:
+        entries = []
+        cat_total = sum(abs(d[cat]) for d in cust_data.values())
+        for name, d in cust_data.items():
+            if abs(d[cat]) > 0.001:
+                entries.append({
+                    "name": name,
+                    "mrr_change": d[cat],
+                    "pct": abs(d[cat]) / cat_total * 100 if cat_total > 0 else 0,
+                })
+        entries.sort(key=lambda e: abs(e["mrr_change"]), reverse=True)
+        result[cat] = entries
+
+    return result
+
+
 def all_monthly_bridges(
     df: pd.DataFrame,
     mrr_periods: list[dict],
