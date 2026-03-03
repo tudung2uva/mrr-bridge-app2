@@ -291,10 +291,11 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
 
     b_selected = build_bridge_range(df, mrr_periods, si, ei)
 
-    # Last-12M cumulative NRR/GRR (bridge-style, not averaged monthly values)
-    if ei > si:
-        t12_si = max(si, ei - 12)
-        b_last12 = build_bridge_range(df, mrr_periods, t12_si, ei)
+    # Last-12M cumulative NRR/GRR (static trailing window, independent of selected range)
+    if len(mrr_periods) > 1:
+        global_ei = len(mrr_periods) - 1
+        t12_si = max(0, global_ei - 12)
+        b_last12 = build_bridge_range(df, mrr_periods, t12_si, global_ei)
         t12_nrr = b_last12.get("nrr")
         t12_grr = b_last12.get("grr")
     else:
@@ -325,6 +326,11 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
     for yi, (yr, idxs) in enumerate(year_groups.items()):
         yr_si, yr_ei = idxs[0], idxs[-1]
         if yi == 0:
+            # Match bridge chart behavior: if first selected year has only one month,
+            # treat it as an opening stub and exclude it from weighted KPI averages.
+            if yr_si == yr_ei:
+                prev_yr_ei = yr_ei
+                continue
             b_year = build_bridge_range(df, mrr_periods, yr_si, yr_ei)
         else:
             bridge_from = prev_yr_ei if prev_yr_ei is not None else yr_si
@@ -379,12 +385,12 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
         nrr_display = f"{avg_nrr}%" if avg_nrr is not None else "—"
         st.metric("Avg NRR", nrr_display)
         if t12_nrr:
-            st.caption(f"Last 12M: {t12_nrr}%")
+            st.caption(f"Last 12M (cumulative): {t12_nrr}%")
     with cols[2]:
         grr_display = f"{avg_grr}%" if avg_grr is not None else "—"
         st.metric("Avg GRR", grr_display)
         if t12_grr:
-            st.caption(f"Last 12M: {t12_grr}%")
+            st.caption(f"Last 12M (cumulative): {t12_grr}%")
     with cols[3]:
         st.metric(
             "Active Customers",
