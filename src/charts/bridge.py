@@ -191,6 +191,89 @@ def _render_movement_details(details: dict, sym: str, mult: int, lbl: str) -> No
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
+# ── Bridge summary table helper ────────────────────────────
+
+def _render_bridge_summary_table(df, mrr_periods, si, ei, bridge_type: str = "mrr") -> None:
+    """Render a summary table with absolute + percentage values for all years.
+
+    *bridge_type* is ``"mrr"`` or ``"logo"``.
+    Shows Total row + one row per calendar year in range.
+    """
+    import collections
+
+    sym = st.session_state.get("currency", "€")
+    mult = 12 if st.session_state.get("show_arr", False) else 1
+    lbl = "ARR" if st.session_state.get("show_arr", False) else "MRR"
+
+    # Group indices by year
+    year_groups: dict[int, list[int]] = collections.OrderedDict()
+    for idx in range(si, ei + 1):
+        yr = mrr_periods[idx]["year"]
+        year_groups.setdefault(yr, []).append(idx)
+
+    # Compute total bridge
+    b_total = build_bridge_range(df, mrr_periods, si, ei)
+
+    rows: list[dict] = []
+
+    def _make_row(label: str, b: dict, is_total: bool = False) -> dict:
+        opening = b["opening"]
+        if bridge_type == "mrr":
+            row = {"Period": label}
+            row[f"Opening {lbl}"] = format_currency(opening * mult, sym, short=True)
+            for key, name in [("new_logo", "New Logo"), ("upsell", "Upsell"),
+                              ("react", "Reactivation"), ("downsell", "Downsell"),
+                              ("churn", "Churn")]:
+                val = b[key] * mult
+                pct = (b[key] / opening * 100) if opening > 0 else 0
+                row[name] = f"{format_currency(val, sym, short=True)} ({pct:+.1f}%)"
+            row[f"Closing {lbl}"] = format_currency(b["closing"] * mult, sym, short=True)
+            net_change = (b["closing"] - opening) / opening * 100 if opening > 0 else 0
+            row["Net Change %"] = f"{net_change:+.1f}%"
+            row["NRR"] = f"{b['nrr']:.1f}%" if b.get("nrr") else "—"
+            row["GRR"] = f"{b['grr']:.1f}%" if b.get("grr") else "—"
+        else:  # logo
+            row = {"Period": label}
+            row["Opening #"] = str(b["cust_opening"])
+            for key, name in [("cust_new", "New Logos"), ("cust_react", "Reactivations"),
+                              ("cust_churn", "Churned")]:
+                val = b[key]
+                pct = (val / b["cust_opening"] * 100) if b["cust_opening"] > 0 else 0
+                sign = "+" if key != "cust_churn" else "-"
+                row[name] = f"{sign}{val} ({pct:+.1f}%)"
+            row["Closing #"] = str(b["cust_closing"])
+            net = b["cust_closing"] - b["cust_opening"]
+            row["Net Change"] = f"{'+' if net >= 0 else ''}{net}"
+        return row
+
+    # Total row
+    rows.append(_make_row(
+        f"Total ({mrr_periods[si]['lbl']} → {mrr_periods[ei]['lbl']})",
+        b_total, is_total=True))
+
+    # Per-year rows
+    prev_yr_ei = None
+    for yi, (yr, idxs) in enumerate(year_groups.items()):
+        yr_si = idxs[0]
+        yr_ei = idxs[-1]
+        if yr_si == yr_ei and yi == 0:
+            # Single month in first year — skip (no movements)
+            prev_yr_ei = yr_ei
+            continue
+        if yi == 0:
+            b = build_bridge_range(df, mrr_periods, yr_si, yr_ei)
+        else:
+            bridge_from = prev_yr_ei if prev_yr_ei is not None else yr_si
+            b = build_bridge_range(df, mrr_periods, bridge_from, yr_ei)
+        rows.append(_make_row(str(yr), b))
+        prev_yr_ei = yr_ei
+
+    if len(rows) > 1:
+        import pandas as pd
+        st.markdown(f"**{'MRR' if bridge_type == 'mrr' else 'Logo'} Bridge Summary**")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 # ── Public render functions ────────────────────────────────
 
 def render_mrr_bridge(df, mrr_periods) -> None:
@@ -209,6 +292,25 @@ def render_mrr_bridge(df, mrr_periods) -> None:
     sym = st.session_state.get("currency", "€")
     mult = 12 if st.session_state.get("show_arr", False) else 1
     lbl = "ARR" if st.session_state.get("show_arr", False) else "MRR"
+
+    # ── Annualized KPIs above chart ───────────────────────
+    month_count = ei - si
+    if month_count > 0 and b["opening"] > 0:
+        ann_cagr = ((b["closing"] / b["opening"]) ** (12 / month_count) - 1) * 100
+    else:
+        ann_cagr = None
+    # NRR/GRR from build_bridge_range is the TOTAL ratio over the full range.
+    # Annualize: (ratio) ^ (12/month_count) to get the 12-month equivalent.
+    ann_nrr = ((b["nrr"] / 100) ** (12 / month_count) * 100) if b.get("nrr") and month_count > 0 else None
+    ann_grr = ((b["grr"] / 100) ** (12 / month_count) * 100) if b.get("grr") and month_count > 0 else None
+
+    kpi_cols = st.columns(3)
+    kpi_cols[0].metric("Annualized CAGR",
+                       f"{ann_cagr:+.1f}%" if ann_cagr is not None else "—")
+    kpi_cols[1].metric("Annualized NRR",
+                       f"{ann_nrr:.1f}%" if ann_nrr is not None else "—")
+    kpi_cols[2].metric("Annualized GRR",
+                       f"{ann_grr:.1f}%" if ann_grr is not None else "—")
 
     labels   = ["Opening", "New Logo", "Upsell", "Reactivation", "Downsell", "Churn", "Closing"]
     raw_vals = [b["opening"], b["new_logo"], b["upsell"], b["react"],
@@ -244,6 +346,9 @@ def render_mrr_bridge(df, mrr_periods) -> None:
     col_map = st.session_state.get("col_map", {})
     details = get_movement_details(df, mrr_periods, si, ei, col_map)
     _render_movement_details(details, sym, mult, lbl)
+
+    # Summary table
+    _render_bridge_summary_table(df, mrr_periods, si, ei, "mrr")
 
 
 def _render_yearly_bridge(df, mrr_periods, si, ei) -> None:
@@ -340,14 +445,21 @@ def _render_yearly_bridge(df, mrr_periods, si, ei) -> None:
 
     # ── summary KPIs above chart ──────────────────────────
     b_total = build_bridge_range(df, mrr_periods, si, ei)
+    month_count = ei - si
+    if month_count > 0 and b_total["opening"] > 0:
+        ann_cagr = ((b_total["closing"] / b_total["opening"]) ** (12 / month_count) - 1) * 100
+    else:
+        ann_cagr = None
+    ann_nrr = ((b_total["nrr"] / 100) ** (12 / month_count) * 100) if b_total.get("nrr") and month_count > 0 else None
+    ann_grr = ((b_total["grr"] / 100) ** (12 / month_count) * 100) if b_total.get("grr") and month_count > 0 else None
+
     kpi_cols = st.columns(3)
-    cmgr_str = (
-        f"{'+' if b_total['cmgr'] >= 0 else ''}{b_total['cmgr'] * 100:.2f}%/mo"
-        if b_total.get("cmgr") is not None else "—"
-    )
-    kpi_cols[0].metric("CMGR", cmgr_str)
-    kpi_cols[1].metric("Avg NRR", f"{b_total['nrr']:.1f}%" if b_total.get('nrr') else "—")
-    kpi_cols[2].metric("Avg GRR", f"{b_total['grr']:.1f}%" if b_total.get('grr') else "—")
+    kpi_cols[0].metric("Annualized CAGR",
+                       f"{ann_cagr:+.1f}%" if ann_cagr is not None else "—")
+    kpi_cols[1].metric("Annualized NRR",
+                       f"{ann_nrr:.1f}%" if ann_nrr is not None else "—")
+    kpi_cols[2].metric("Annualized GRR",
+                       f"{ann_grr:.1f}%" if ann_grr is not None else "—")
 
     # ── build waterfall ───────────────────────────────────
     bases, heights = _wf_bars(all_values, all_measures)
@@ -393,6 +505,14 @@ def _render_yearly_bridge(df, mrr_periods, si, ei) -> None:
         bargap=0.3,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Customer breakdown per movement category
+    col_map = st.session_state.get("col_map", {})
+    details = get_movement_details(df, mrr_periods, si, ei, col_map)
+    _render_movement_details(details, sym, mult, lbl)
+
+    # Summary table
+    _render_bridge_summary_table(df, mrr_periods, si, ei, "mrr")
 
 
 def render_logo_bridge(df, mrr_periods) -> None:
@@ -444,6 +564,9 @@ def render_logo_bridge(df, mrr_periods) -> None:
     col_map = st.session_state.get("col_map", {})
     details = get_movement_details(df, mrr_periods, si, ei, col_map)
     _render_movement_details(details, sym, mult, lbl)
+
+    # Summary table
+    _render_bridge_summary_table(df, mrr_periods, si, ei, "logo")
 
 
 def _render_yearly_logo_bridge(df, mrr_periods, si, ei) -> None:
@@ -560,3 +683,14 @@ def _render_yearly_logo_bridge(df, mrr_periods, si, ei) -> None:
         bargap=0.3,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Customer breakdown per movement category
+    sym = st.session_state.get("currency", "€")
+    mult = 12 if st.session_state.get("show_arr", False) else 1
+    lbl = "ARR" if st.session_state.get("show_arr", False) else "MRR"
+    col_map = st.session_state.get("col_map", {})
+    details = get_movement_details(df, mrr_periods, si, ei, col_map)
+    _render_movement_details(details, sym, mult, lbl)
+
+    # Summary table
+    _render_bridge_summary_table(df, mrr_periods, si, ei, "logo")

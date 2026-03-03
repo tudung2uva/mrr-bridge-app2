@@ -33,7 +33,7 @@ def _cohort_color(val: float | None, ctype: str, empty_cohort: bool = False) -> 
     customers — render as grey.
     """
     if empty_cohort:
-        return "background-color:#12151d;color:#4a5a7a;font-style:italic"
+        return "background-color:#12151d;color:#ffffff;font-style:italic"
     if val is None:
         return "background-color:#080a0f;color:#1a2030"
     if ctype == "nrr":
@@ -100,24 +100,23 @@ def _build_cohort_html(cohorts: list[dict], ctype: str, gran: str) -> str:
     for c in cohorts:
         is_empty = c.get("_empty", False)
         sv = format_currency(c["init_mrr"], sym, short=True) if ctype in ("grr", "nrr") else str(c["size"])
-        row_style = "color:#3a4560" if is_empty else ""
-        html += f'<tr><td style="padding:4px 8px;font-weight:700;color:{"#3a4560" if is_empty else "#dde3f0"}">{c["label"]}</td>'
-        html += f'<td style="padding:4px 8px;color:{"#3a4560" if is_empty else "#6a7a9a"}">{sv}</td>'
+        # All first two columns (except header) use same font
+        html += f'<tr><td style="padding:4px 8px;font-weight:400;color:#222;font-family:IBM Plex Mono,monospace">{c["label"]}</td>'
+        html += f'<td style="padding:4px 8px;font-weight:400;color:#222;font-family:IBM Plex Mono,monospace">{sv}</td>'
         for i in range(max_offset):
             v = c[ret_key][i] if i < len(c[ret_key]) else None
-            if is_empty:
-                style = _cohort_color(0, ctype, empty_cohort=True)
+            if is_empty or (v is None and not is_empty):
+                # N/A cell: white background, light gray text
+                style = "background-color:#fff;color:#bbb;font-style:italic"
                 txt = "N/A"
             else:
                 style = _cohort_color(v, ctype)
                 txt = f"{v:.1f}%" if v is not None else "N/A"
-            if v is None and not is_empty:
-                style = "background-color:#12151d;color:#4a5a7a;font-style:italic"
             html += f'<td style="padding:3px 5px;text-align:center;{style}">{txt}</td>'
         html += '</tr>'
 
     # Weighted avg row
-    html += '<tr style="border-top:2px solid #2a3050"><td style="padding:4px 8px;color:#ffb020;font-weight:700">Weighted avg</td><td></td>'
+    html += '<tr style="border-top:2px solid #2a3050"><td style="padding:4px 8px;color:#111;font-weight:700">Weighted avg</td><td></td>'
     for v in wavg:
         style = _cohort_color(v, ctype) + ";font-weight:700"
         txt = f"{v:.1f}%" if v is not None else ""

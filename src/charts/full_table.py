@@ -77,7 +77,7 @@ def render_full_table(monthly: list[dict]) -> None:
     # In ARR mode collapse to yearly
     shown = _group_by_year(shown_monthly) if show_arr else shown_monthly
 
-    st.caption(f"Showing: {period_label} · {len(shown)} columns · {rr_lbl} mode")
+    st.caption(f"Showing: {period_label} · {len(shown)} {'column' if len(shown) == 1 else 'columns'} · {rr_lbl} mode")
 
     # ── Row definitions with categories ────────────────────
     # (label, key, fmt, category)
@@ -161,6 +161,27 @@ def render_full_table(monthly: list[dict]) -> None:
             return str(totals.get(key, "—"))
         else:
             return format_currency(totals[key] * mult, sym)
+
+    # ── CSV Export ─────────────────────────────────────────
+    export_rows: list[dict] = []
+    for label, key, fmt, is_bold in rows_def:
+        if fmt == "section":
+            continue
+        row_data = {"Metric": label}
+        for b in shown:
+            row_data[b["end_period"]["lbl"]] = _cell_val(b, key, fmt)
+        row_data["Total"] = _total_val(key, fmt)
+        export_rows.append(row_data)
+
+    csv_df = pd.DataFrame(export_rows)
+    csv_data = csv_df.to_csv(index=False)
+    st.download_button(
+        label="📥 Export as CSV",
+        data=csv_data,
+        file_name=f"bridge_table_{period_label.replace(' ', '_')}.csv",
+        mime="text/csv",
+        key="full_table_csv_export",
+    )
 
     # ── Detect year boundaries for separators ──────────────
     col_years = []

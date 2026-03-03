@@ -353,6 +353,9 @@ def build_cohorts(
         cohort_map.setdefault(key, []).append({"row": row, "start_idx": start_idx})
 
     sorted_keys = sorted(cohort_map.keys())
+    year_last_idx: dict[int, int] = {}
+    for idx, p in enumerate(mrr_periods):
+        year_last_idx[p["year"]] = idx
     cohorts: list[dict] = []
 
     for key in sorted_keys:
@@ -369,7 +372,11 @@ def build_cohorts(
         earliest_start = (
             min(m["start_idx"] for m in members) if gran == "yearly" else key
         )
-        max_offset = len(mrr_periods) - earliest_start - 1
+        if gran == "yearly":
+            max_year = mrr_periods[-1]["year"] if mrr_periods else int(key)
+            max_offset = max_year - int(key)
+        else:
+            max_offset = len(mrr_periods) - earliest_start - 1
 
         logo_ret: list[float | None] = []
         grr_ret:  list[float | None] = []
@@ -383,12 +390,22 @@ def build_cohorts(
             valid_size = 0
 
             for m in members:
-                member_offset = offset - (m["start_idx"] - earliest_start)
-                if member_offset < 0:
-                    continue
-                p_idx = m["start_idx"] + member_offset
-                if p_idx >= len(mrr_periods):
-                    continue
+                if gran == "yearly":
+                    start_year = mrr_periods[m["start_idx"]]["year"]
+                    target_year = int(key) + offset
+                    if target_year < start_year:
+                        continue
+                    p_idx = year_last_idx.get(target_year)
+                    if p_idx is None or p_idx < m["start_idx"]:
+                        continue
+                    member_offset = p_idx - m["start_idx"]
+                else:
+                    member_offset = offset - (m["start_idx"] - earliest_start)
+                    if member_offset < 0:
+                        continue
+                    p_idx = m["start_idx"] + member_offset
+                    if p_idx >= len(mrr_periods):
+                        continue
 
                 init_m = get_mrr(m["row"], mrr_periods[m["start_idx"]]["key"])
                 valid_init_mrr += init_m

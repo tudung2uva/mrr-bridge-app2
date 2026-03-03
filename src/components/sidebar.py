@@ -8,6 +8,7 @@ from __future__ import annotations
 import streamlit as st
 
 from utils.constants import CURRENCY_SYMBOLS
+from components.formula_panel import render_formula_panel
 
 
 def render_sidebar() -> dict[str, dict]:
@@ -74,6 +75,13 @@ def render_sidebar() -> dict[str, dict]:
 
                 st.session_state["col_map"] = col_map
                 st.session_state["extra_dim_cols"] = extra_dim_cols
+
+        # ── Formula Inspector (in sidebar) ─────────────────
+        from data.engine import all_monthly_bridges
+        _mrr = st.session_state.get("mrr_periods", [])
+        if _mrr:
+            _monthly = all_monthly_bridges(df, _mrr)
+            render_formula_panel(_monthly)
 
         st.markdown("---")
         st.markdown("### 🔍 Filters")

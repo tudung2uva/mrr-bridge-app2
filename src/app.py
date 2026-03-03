@@ -50,7 +50,6 @@ from data.engine import (
 )
 from components.sidebar import render_sidebar
 from components.validation import render_validation
-from components.formula_panel import render_formula_panel
 from charts.bridge import render_mrr_bridge, render_logo_bridge, render_period_selector
 from charts.trend import render_trend, render_components
 from charts.acv import render_acv
@@ -116,17 +115,14 @@ st.markdown(
     f"{filter_txt}",
 )
 
+# ── Reconciliation checks (above date filter) ─────────────
+render_validation(monthly)
+
 # ── Period selectors (global date range for all tabs) ─────
 bridge_start, bridge_end = render_period_selector("brg_")
 
 # Create date-filtered monthly subset for non-cohort tabs
 bridge_monthly = [b for idx, b in enumerate(monthly) if bridge_start <= idx <= bridge_end]
-
-# ── Formula inspector (above title) ──────────────────────
-render_formula_panel(monthly)
-
-# ── Reconciliation checks ─────────────────────────────────
-render_validation(monthly)
 
 # ── Tabs ───────────────────────────────────────────────────
 tab_names = [
