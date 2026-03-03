@@ -291,16 +291,24 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
 
     b_selected = build_bridge_range(df, mrr_periods, si, ei)
 
-    # Last-12M cumulative NRR/GRR (static trailing window, independent of selected range)
+    # Last-12M cumulative retention KPIs (static trailing window)
     if len(mrr_periods) > 1:
         global_ei = len(mrr_periods) - 1
         t12_si = max(0, global_ei - 12)
         b_last12 = build_bridge_range(df, mrr_periods, t12_si, global_ei)
         t12_nrr = b_last12.get("nrr")
         t12_grr = b_last12.get("grr")
+        if b_last12.get("opening", 0) > 0:
+            t12_churn_pct = abs(b_last12["churn"]) / b_last12["opening"] * 100
+            t12_monthly_churn_rate = abs(b_last12["churn"]) / b_last12["opening"] / 12
+        else:
+            t12_churn_pct = None
+            t12_monthly_churn_rate = None
     else:
         t12_nrr = None
         t12_grr = None
+        t12_churn_pct = None
+        t12_monthly_churn_rate = None
 
     # ── CAGR calculation ──────────────────────────────────
     closing_val = b_selected["closing"] * mult
@@ -311,51 +319,6 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
         cagr_str = f"CAGR {cagr:+.1f}%"
     else:
         cagr_str = None
-
-
-    # ── Weighted averages by year segment (align with JS bridge chart) ──
-    # Group indices by year
-    year_groups = collections.OrderedDict()
-    for idx in range(si, ei + 1):
-        yr = mrr_periods[idx]["year"]
-        year_groups.setdefault(yr, []).append(idx)
-
-    # Build per-year bridge segments
-    yearly_bridges = []
-    prev_yr_ei = None
-    for yi, (yr, idxs) in enumerate(year_groups.items()):
-        yr_si, yr_ei = idxs[0], idxs[-1]
-        if yi == 0:
-            # Match bridge chart behavior: if first selected year has only one month,
-            # treat it as an opening stub and exclude it from weighted KPI averages.
-            if yr_si == yr_ei:
-                prev_yr_ei = yr_ei
-                continue
-            b_year = build_bridge_range(df, mrr_periods, yr_si, yr_ei)
-        else:
-            bridge_from = prev_yr_ei if prev_yr_ei is not None else yr_si
-            b_year = build_bridge_range(df, mrr_periods, bridge_from, yr_ei)
-        yearly_bridges.append(b_year)
-        prev_yr_ei = yr_ei
-
-    # Weighted average NRR/GRR over year segments
-    nrr_segs = [b for b in yearly_bridges if b.get("nrr") is not None and b.get("opening", 0) > 0]
-    grr_segs = [b for b in yearly_bridges if b.get("grr") is not None and b.get("opening", 0) > 0]
-    avg_nrr = (
-        round(sum(b["nrr"] * b["opening"] for b in nrr_segs) / sum(b["opening"] for b in nrr_segs), 1)
-        if nrr_segs else None
-    )
-    avg_grr = (
-        round(sum(b["grr"] * b["opening"] for b in grr_segs) / sum(b["opening"] for b in grr_segs), 1)
-        if grr_segs else None
-    )
-
-    # Weighted average churn over year segments
-    churn_segs = [b for b in yearly_bridges if b.get("opening", 0) > 0]
-    total_churn = sum(abs(b["churn"]) for b in churn_segs)
-    total_opening = sum(b["opening"] for b in churn_segs)
-    avg_churn_pct = (total_churn / total_opening * 100) if total_opening > 0 else None
-    avg_monthly_churn_rate = (total_churn / total_opening) if total_opening > 0 else None
 
     # Active customers
     if col_map.get("companyName") and col_map["companyName"] in df.columns:
@@ -368,7 +331,7 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
     arpa = b_selected["closing"] * mult / b_selected["cust_closing"] if b_selected["cust_closing"] > 0 else None
 
     # ACL (Average Customer Lifetime) = 1 / monthly churn rate → months
-    acl_months = 1 / avg_monthly_churn_rate if avg_monthly_churn_rate and avg_monthly_churn_rate > 0 else None
+    acl_months = 1 / t12_monthly_churn_rate if t12_monthly_churn_rate and t12_monthly_churn_rate > 0 else None
 
     # LTV (Customer Lifetime Value) = ARPA × ACL  (assumes 100% gross margin)
     ltv = arpa * (acl_months / 12 if show_arr else acl_months) if (arpa and acl_months) else None
@@ -382,15 +345,11 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
             delta=cagr_str,
         )
     with cols[1]:
-        nrr_display = f"{avg_nrr}%" if avg_nrr is not None else "—"
-        st.metric("Avg NRR", nrr_display)
-        if t12_nrr:
-            st.caption(f"Last 12M (cumulative): {t12_nrr}%")
+        nrr_display = f"{t12_nrr:.1f}%" if t12_nrr is not None else "—"
+        st.metric("NRR (Last 12M)", nrr_display)
     with cols[2]:
-        grr_display = f"{avg_grr}%" if avg_grr is not None else "—"
-        st.metric("Avg GRR", grr_display)
-        if t12_grr:
-            st.caption(f"Last 12M (cumulative): {t12_grr}%")
+        grr_display = f"{t12_grr:.1f}%" if t12_grr is not None else "—"
+        st.metric("GRR (Last 12M)", grr_display)
     with cols[3]:
         st.metric(
             "Active Customers",
@@ -399,8 +358,8 @@ def render_dashboard(df, mrr_periods, col_map, monthly) -> None:
         )
     with cols[4]:
         st.metric(
-            "Avg Churn %",
-            f"{avg_churn_pct:.1f}%" if avg_churn_pct is not None else "—",
+            "Churn % (Last 12M)",
+            f"{t12_churn_pct:.1f}%" if t12_churn_pct is not None else "—",
         )
     with cols[5]:
         acl_display = f"{acl_months:.1f} mo" if acl_months is not None else "—"
