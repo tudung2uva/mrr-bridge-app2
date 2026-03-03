@@ -69,7 +69,7 @@ def _build_cohort_html(cohorts: list[dict], ctype: str, gran: str) -> str:
         if len(arr) < max_offset:
             c[ret_key] = arr + [None] * (max_offset - len(arr))
 
-    prefix = "Y" if gran == "yearly" else "M"
+    prefix = "M"
     mh = [f"{prefix}{i}" for i in range(max_offset)]
 
     # Weighted average row
@@ -222,7 +222,7 @@ def render_nrr_chart(df, mrr_periods) -> None:
         return
 
     max_len = max(len(c["nrr_ret"]) for c in cohorts)
-    prefix = "Y" if gran == "yearly" else "M"
+    prefix = "M"
     x_labels = [f"{prefix}{i}" for i in range(max_len)]
 
     fig = go.Figure()
